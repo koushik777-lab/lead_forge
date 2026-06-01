@@ -87,7 +87,11 @@ export default function CrmBoard() {
                         )}
 
                         <div className="flex items-center gap-2 text-muted-foreground">
-                          {lead.noWebsite && <Globe2 className="w-3 h-3 text-amber-400" title="No Website" />}
+                          {lead.noWebsite && (
+                            <span title="No Website">
+                              <Globe2 className="w-3 h-3 text-amber-400" />
+                            </span>
+                          )}
                           {lead.email && <Mail className="w-3 h-3" />}
                           {lead.phone && <Phone className="w-3 h-3" />}
                         </div>
