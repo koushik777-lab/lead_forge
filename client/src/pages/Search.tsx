@@ -15,10 +15,13 @@ import {
   ExternalLink,
   Tags,
   CheckCircle2,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 interface SearchResult {
   type: "local" | "organic";
@@ -58,10 +61,11 @@ export default function Search() {
   const [error, setError] = useState<string | null>(null);
   const [addingLeads, setAddingLeads] = useState<Set<number>>(new Set());
   const [addAllLoading, setAddAllLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   
   // Category logic
-  const [categoryName, setCategoryName] = useState("");
-  const [showCategoryModal, setShowCategoryModal] = useState(true);
+  const [categoryName, setCategoryName] = useState("Uncategorized");
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [tempCategory, setTempCategory] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -193,6 +197,228 @@ export default function Search() {
     });
   };
 
+  const handleExportExcel = async () => {
+    if (!data || data.results.length === 0) return;
+    setExportLoading(true);
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Lead Discovery Data");
+
+      // Make gridlines visible explicitly
+      worksheet.views = [{ showGridLines: true }];
+
+      // Add a couple of empty rows for neatness
+      worksheet.addRow([]);
+
+      // 1. Add styled Title Block at the top
+      const titleRow = worksheet.addRow(["LeadForge Elite — Lead Discovery Report"]);
+      titleRow.height = 32;
+      const titleCell = titleRow.getCell(1);
+      titleCell.font = {
+        name: "Segoe UI",
+        family: 4,
+        size: 16,
+        bold: true,
+        color: { argb: "FF1E3A8A" }, // Dark Blue #1E3A8A
+      };
+
+      const metaRow = worksheet.addRow([
+        `Category: ${categoryName || "Uncategorized"}  |  Search: "${data.query}"  |  Total: ${data.results.length} Leads  |  Export Date: ${new Date().toLocaleDateString()}`
+      ]);
+      metaRow.height = 20;
+      const metaCell = metaRow.getCell(1);
+      metaCell.font = {
+        name: "Segoe UI",
+        family: 4,
+        size: 10,
+        italic: true,
+        color: { argb: "FF4B5563" }, // Gray #4B5563
+      };
+
+      worksheet.addRow([]); // Blank spacer row
+
+      // 2. Define Table Headers
+      const headers = [
+        "Company Name",
+        "Type",
+        "Category/Industry",
+        "Rating",
+        "Reviews",
+        "Phone Number",
+        "Website",
+        "Address",
+        "Google Maps Link"
+      ];
+
+      const headerRow = worksheet.addRow(headers);
+      headerRow.height = 28;
+
+      // Style header row
+      headerRow.eachCell((cell) => {
+        cell.font = {
+          name: "Segoe UI",
+          family: 4,
+          size: 11,
+          bold: true,
+          color: { argb: "FFFFFFFF" },
+        };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF2563EB" }, // Slate Blue #2563EB
+        };
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: "left",
+        };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFD1D5DB" } },
+          left: { style: "thin", color: { argb: "FFD1D5DB" } },
+          bottom: { style: "medium", color: { argb: "FF1E3A8A" } },
+          right: { style: "thin", color: { argb: "FFD1D5DB" } },
+        };
+      });
+
+      // Align specific headers to center for visual balance
+      headerRow.getCell(2).alignment = { vertical: "middle", horizontal: "center" };
+      headerRow.getCell(4).alignment = { vertical: "middle", horizontal: "center" };
+      headerRow.getCell(5).alignment = { vertical: "middle", horizontal: "center" };
+
+      // 3. Populate Data Rows
+      data.results.forEach((item) => {
+        const rowData = [
+          item.name,
+          item.type === "local" ? "Local" : "Organic",
+          item.category || "",
+          item.rating !== null ? item.rating : "",
+          item.reviews !== null ? item.reviews : "",
+          item.phone || "",
+          item.website || "",
+          item.address || "",
+          item.googleMapsLink || "",
+        ];
+
+        const row = worksheet.addRow(rowData);
+        row.height = 22;
+
+        // Apply grid styling to all cells
+        row.eachCell((cell, colNumber) => {
+          cell.font = {
+            name: "Segoe UI",
+            family: 4,
+            size: 10.5,
+            color: { argb: "FF1F2937" }, // Gray 800
+          };
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: "left",
+          };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFE5E7EB" } },
+            left: { style: "thin", color: { argb: "FFE5E7EB" } },
+            bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+            right: { style: "thin", color: { argb: "FFE5E7EB" } },
+          };
+
+          // Custom alignment for specific columns
+          if (colNumber === 2 || colNumber === 4 || colNumber === 5) {
+            cell.alignment = { vertical: "middle", horizontal: "center" };
+          }
+
+          // Format numeric columns
+          if (colNumber === 4 && item.rating !== null) {
+            cell.numFmt = "0.0";
+          }
+          if (colNumber === 5 && item.reviews !== null) {
+            cell.numFmt = "#,##0";
+          }
+        });
+
+        // --- SPECIFIC CUSTOM STYLING REQUESTED BY USER ---
+        
+        // A. Company Name Focus Styling (Column 1)
+        // Background: Light blue (#E0F2FE), Dark blue text (#0369A1), Bold
+        const nameCell = row.getCell(1);
+        nameCell.font = {
+          name: "Segoe UI",
+          family: 4,
+          size: 10.5,
+          bold: true,
+          color: { argb: "FF0369A1" }, // Dark blue/cyan text
+        };
+        nameCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE0F2FE" }, // Light blue background
+        };
+
+        // B. Phone Number Focus Styling (Column 6)
+        // Background: Light green (#DCFCE7), Dark green text (#15803D)
+        const phoneCell = row.getCell(6);
+        phoneCell.font = {
+          name: "Segoe UI",
+          family: 4,
+          size: 10.5,
+          bold: true,
+          color: { argb: "FF15803D" }, // Dark green text
+        };
+        phoneCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFDCFCE7" }, // Light green background
+        };
+      });
+
+      // 4. Auto-fit column widths
+      for (let colNum = 1; colNum <= 9; colNum++) {
+        const column = worksheet.getColumn(colNum);
+        if (column) {
+          let maxLen = 12; // Min width
+          if (column.eachCell) {
+            column.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
+              if (rowNumber > 5) {
+                const val = cell.value ? String(cell.value) : "";
+                if (val.length > maxLen) {
+                  maxLen = val.length;
+                }
+              }
+            });
+          }
+          column.width = Math.min(maxLen + 4, 45);
+        }
+      }
+
+      // Ensure first column has enough room for Title and metadata spanning
+      const firstCol = worksheet.getColumn(1);
+      if (firstCol) {
+        firstCol.width = Math.max(firstCol.width || 0, 25);
+      }
+
+      // Write and Save
+      const buffer = await workbook.xlsx.writeBuffer();
+      const searchSentence = data.query || query || "Leads_Export";
+      const sanitizedSentence = searchSentence.trim().replace(/[^a-zA-Z0-9 -]/g, "").replace(/\s+/g, "_");
+      const fileName = `${sanitizedSentence}.xlsx`;
+      
+      saveAs(new Blob([buffer]), fileName);
+
+      toast({
+        title: "Excel Exported!",
+        description: `Successfully exported ${data.results.length} leads with premium highlights.`,
+      });
+    } catch (err: any) {
+      console.error("Excel Export Error:", err);
+      toast({
+        title: "Export failed",
+        description: err.message || "An error occurred during Excel export.",
+        variant: "destructive",
+      });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full relative">
       {/* Category Selection Modal */}
@@ -238,7 +464,10 @@ export default function Search() {
               {categoryName || "Uncategorized"}
             </Badge>
             <button 
-              onClick={() => setShowCategoryModal(true)}
+              onClick={() => {
+                setTempCategory(categoryName);
+                setShowCategoryModal(true);
+              }}
               className="text-[10px] text-primary hover:underline ml-1"
             >
               Change
@@ -326,18 +555,33 @@ export default function Search() {
                 Showing <span className="font-bold text-foreground">{data.results.length}</span> results for{" "}
                 <span className="text-primary italic">"{data.query}"</span>
               </p>
-              <Button 
-                onClick={handleAddAll} 
-                disabled={addAllLoading}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-4 text-xs font-bold gap-2 shadow-lg shadow-emerald-900/20"
-              >
-                {addAllLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                )}
-                Add All Leads to "{categoryName}"
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={handleExportExcel} 
+                  disabled={exportLoading}
+                  variant="outline"
+                  className="border-emerald-600/30 text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-400 h-9 px-4 text-xs font-bold gap-2"
+                >
+                  {exportLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                  )}
+                  Download Excel
+                </Button>
+                <Button 
+                  onClick={handleAddAll} 
+                  disabled={addAllLoading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-4 text-xs font-bold gap-2 shadow-lg shadow-emerald-900/20"
+                >
+                  {addAllLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  )}
+                  Add All Leads to "{categoryName}"
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-3">

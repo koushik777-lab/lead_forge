@@ -24,12 +24,12 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        {/* <Route path="/" component={Dashboard} /> */}
         <Route path="/leads/:id" component={LeadDetail} />
-        <Route path="/leads" component={Leads} />
+        {/* <Route path="/leads" component={Leads} /> */}
         <Route path="/search" component={Search} />
-        <Route path="/crm" component={CrmBoard} />
-        <Route path="/outreach" component={Outreach} />
+        {/* <Route path="/crm" component={CrmBoard} /> */}
+        {/* <Route path="/outreach" component={Outreach} /> */}
         <Route component={NotFound} />
       </Switch>
     </Layout>

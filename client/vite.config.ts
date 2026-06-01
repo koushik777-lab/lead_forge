@@ -7,10 +7,10 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, path.resolve(__dirname, ".."), "");
+  const env = loadEnv(mode, __dirname, "");
   
   return {
-    envDir: "../",
+    envDir: "./",
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
